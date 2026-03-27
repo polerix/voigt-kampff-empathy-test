@@ -1,0 +1,14 @@
+Voight-Kampff Machine Setup
+===========================
+
+1. Copy the ZIP file to your Raspberry Pi.
+2. Extract the ZIP file:
+   unzip voight_kampff.zip
+3. Navigate to the project directory:
+   cd voight_kampff
+4. Run the setup script:
+   ./setup_voight_kampff.sh
+5. Start the application:
+   ./main.py
+
+Enjoy your Voight-Kampff machine!

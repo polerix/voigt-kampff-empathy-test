@@ -1,0 +1,84 @@
+:root {
+  --vk-bg: #000000;
+  --vk-fg: #00ff41;
+  --vk-dim: #0a3d1f;
+  --vk-amber: #ffb000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--vk-bg);
+  color: var(--vk-fg);
+  font-family: "Courier New", monospace;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.crt {
+  padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.panel {
+  border: 1px solid var(--vk-fg);
+  padding: 1.5rem;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.3);
+}
+
+h1 {
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+.readouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.readout {
+  border: 1px solid var(--vk-dim);
+  padding: 0.5rem 1rem;
+  min-width: 90px;
+  text-align: center;
+}
+
+.readout .label {
+  color: var(--vk-dim);
+  font-size: 0.75rem;
+  display: block;
+}
+
+.readout .value {
+  font-size: 1.1rem;
+}
+
+.bar {
+  height: 1.2rem;
+  background: var(--vk-dim);
+  margin: 1rem 0;
+  position: relative;
+}
+
+.bar > .fill {
+  height: 100%;
+  background: var(--vk-fg);
+}
+
+.status-idle {
+  color: var(--vk-amber);
+}
+
+.status-running {
+  color: var(--vk-fg);
+}
+
+a {
+  color: var(--vk-fg);
+}

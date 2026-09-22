@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VK Operator Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="crt">
+    <div class="panel">
+      <h1>OPERATOR DASHBOARD</h1>
+      <p id="status" class="status-idle">STATUS: &mdash;</p>
+      <div class="readouts">
+        <div class="readout"><span class="label">CO2</span><span class="value" id="co2">&mdash;</span></div>
+        <div class="readout"><span class="label">O2</span><span class="value" id="o2">&mdash;</span></div>
+        <div class="readout"><span class="label">IRIS</span><span class="value" id="iris">&mdash;</span></div>
+        <div class="readout"><span class="label">PULSE</span><span class="value" id="pulse">&mdash;</span></div>
+        <div class="readout"><span class="label">TIME</span><span class="value" id="elapsed">&mdash;</span></div>
+      </div>
+      <p id="question">No active question.</p>
+      <div class="bar"><div class="fill" id="bar-fill" style="width:0%"></div></div>
+      <p><a href="/">&larr; Back</a></p>
+    </div>
+  </div>
+  <script>
+    async function poll() {
+      try {
+        const res = await fetch('/api/state');
+        const state = await res.json();
+
+        const statusEl = document.getElementById('status');
+        statusEl.textContent = 'STATUS: ' + state.status.toUpperCase();
+        statusEl.className = state.status === 'running' ? 'status-running' : 'status-idle';
+
+        document.getElementById('question').textContent = state.question || 'No active question.';
+
+        const s = state.sensors || {};
+        document.getElementById('co2').textContent = s.co2 ?? '—';
+        document.getElementById('o2').textContent = s.o2 ?? '—';
+        document.getElementById('iris').textContent = s.iris ?? '—';
+        document.getElementById('pulse').textContent = s.pulse ?? '—';
+        document.getElementById('elapsed').textContent = s.elapsed ?? '—';
+
+        const fill = document.getElementById('bar-fill');
+        if (state.time_left != null && state.time_limit) {
+          const pct = Math.max(0, Math.min(100, 100 - (state.time_left / state.time_limit) * 100));
+          fill.style.width = pct + '%';
+        } else {
+          fill.style.width = '0%';
+        }
+      } catch (e) {
+        // dashboard keeps polling even if a single request fails
+      }
+    }
+    poll();
+    setInterval(poll, 1000);
+  </script>
+</body>
+</html>

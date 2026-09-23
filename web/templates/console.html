@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VK Operator Console</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <h1>Operator Console</h1>
+
+  <div class="panel">
+    <div class="row">
+      <span>Security: <span id="role-badge" class="badge locked">locked</span></span>
+      <span>Backend: <strong id="backend-label">-</strong></span>
+    </div>
+    <div class="row" id="mock-token-row" style="margin-top:0.75rem; display:none;">
+      <div class="field">
+        <label for="token-id">Mock token id (test-software site only)</label>
+        <input id="token-id" type="text" placeholder="OPERATOR-1 / SERVICE-1 / blank to remove" />
+      </div>
+      <button onclick="setToken()">Place token</button>
+      <button onclick="setToken(true)">Remove token</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:1rem;">Buttons</h2>
+    <div class="row">
+      <button id="btn-arm" onclick="pressButton('arm')"><span class="led" id="led-arm"></span>Camera arm</button>
+      <button id="btn-bellows" onclick="pressButton('bellows')"><span class="led" id="led-bellows"></span>Bellows</button>
+      <button id="btn-av" onclick="pressButton('av')"><span class="led" id="led-av"></span>A/V record</button>
+      <button onclick="focusPulse()">Manual focus pulse</button>
+    </div>
+    <p id="button-message" style="color:#b00020;"></p>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:1rem;">Question script</h2>
+    <p>Index <span id="question-index">-</span> / <span id="question-count">-</span> &mdash; timer runs only while A/V is active.</p>
+  </div>
+
+  <div class="panel">
+    <h2 style="font-size:1rem;">Puppeteered readout (shown on subject screens)</h2>
+    <div class="row">
+      <div class="field">
+        <label for="deviation">Deviation (0-100)</label>
+        <input id="deviation" type="range" min="0" max="100" value="0" oninput="setDeviation(this.value)" />
+      </div>
+      <span id="deviation-value">0</span>
+    </div>
+    <table>
+      <thead><tr><th>Field</th><th>Value</th><th>Override</th></tr></thead>
+      <tbody id="sensor-rows"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="service-panel" style="display:none;">
+    <h2 style="font-size:1rem;">Service mode</h2>
+    <div class="row">
+      <div class="field">
+        <label for="jump-index">Jump to question index</label>
+        <input id="jump-index" type="number" min="0" value="0" />
+      </div>
+      <button onclick="jumpTo()">Jump</button>
+      <button onclick="gpioCheck()">Run GPIO check</button>
+    </div>
+    <pre id="service-output"></pre>
+  </div>
+
+<script>
+const SENSOR_FIELDS = ["co2", "o2", "pupil_dilation", "pulse", "reaction_time"];
+
+async function api(path, body) {
+  const opts = { method: "POST", headers: { "Content-Type": "application/json" } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function setToken(remove) {
+  const value = remove ? null : document.getElementById("token-id").value.trim() || null;
+  api("/api/token", { token_id: value }).then(render);
+}
+
+function pressButton(name) {
+  document.getElementById("button-message").textContent = "";
+  fetch(`/api/button/${name}`, { method: "POST" }).then(async (res) => {
+    const body = await res.json();
+    if (!body.ok) document.getElementById("button-message").textContent = body.reason;
+    render(body.state);
+  });
+}
+
+function focusPulse() {
+  api("/api/focus");
+}
+
+function setDeviation(value) {
+  document.getElementById("deviation-value").textContent = value;
+  api("/api/deviation", { value: Number(value) }).then(render);
+}
+
+function overrideSensor(field, raw) {
+  const value = raw === "" ? null : Number(raw);
+  api("/api/sensor-override", { field, value }).then(render);
+}
+
+function jumpTo() {
+  const index = Number(document.getElementById("jump-index").value);
+  api("/api/jump", { index }).then((state) => {
+    if (state.error) document.getElementById("service-output").textContent = state.error;
+    else render(state);
+  });
+}
+
+function gpioCheck() {
+  api("/api/service/gpio-check").then((result) => {
+    document.getElementById("service-output").textContent = JSON.stringify(result, null, 2);
+  });
+}
+
+function render(state) {
+  const roleBadge = document.getElementById("role-badge");
+  roleBadge.textContent = state.security_role;
+  roleBadge.className = "badge " + state.security_role;
+
+  document.getElementById("backend-label").textContent = state.backend;
+  document.getElementById("mock-token-row").style.display = state.backend === "mock" ? "flex" : "none";
+  document.getElementById("service-panel").style.display = state.security_role === "service" ? "block" : "none";
+
+  for (const name of ["arm", "bellows", "av"]) {
+    const btn = document.getElementById(`btn-${name}`);
+    const info = state.buttons[name];
+    btn.className = state.security_role === "locked" ? "locked" : (info.active ? "active" : "");
+    document.getElementById(`led-${name}`).className = "led" + (info.led ? " on" : "");
+  }
+
+  document.getElementById("question-index").textContent = state.session.index;
+  document.getElementById("question-count").textContent = state.session.question_count;
+  document.getElementById("deviation").value = state.display.deviation;
+  document.getElementById("deviation-value").textContent = state.display.deviation;
+
+  const rows = document.getElementById("sensor-rows");
+  rows.innerHTML = "";
+  const sensors = state.display.sensors || {};
+  for (const field of SENSOR_FIELDS) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${field}</td><td>${sensors[field] ?? "-"}</td>` +
+      `<td><input type="number" step="any" placeholder="override" onchange="overrideSensor('${field}', this.value)" /></td>`;
+    rows.appendChild(row);
+  }
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/api/state");
+    render(await res.json());
+  } catch (e) {
+    // keep polling even if a single request fails
+  }
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>

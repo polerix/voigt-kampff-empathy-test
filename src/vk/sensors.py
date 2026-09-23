@@ -1,61 +1,66 @@
-"""Sensor readings for the Voight-Kampff test rig.
+"""Fake physiological readings for the subject-facing screens.
 
-Runs a background poll loop and exposes the latest reading as a thread-safe
-snapshot. The "mock" backend generates plausible random values so the engine
-and web dashboard work without hardware attached. A real backend (GPIO/I2C
-sensors, an eye-tracking webcam) can be added later by implementing a new
-read function with the same signature and registering it in BACKENDS.
+This is a prop: there is no real CO2/O2/pupil-dilation/reaction-time sensor,
+and there won't be - the spec is explicit that fake data is used on purpose.
+Values free-run as a plausible random walk. Any field can be pinned to a
+fixed value from the puppeteer console (override) for a specific run, and
+released back to the random walk (clear_override).
 """
 import random
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 
 @dataclass(frozen=True)
 class SensorReading:
     co2: float
     o2: float
-    iris: str
+    pupil_dilation: float  # mm
     pulse: int
+    reaction_time: float  # seconds
     elapsed: float
 
 
-def _read_mock():
-    return SensorReading(
-        co2=round(random.uniform(0.0, 1.0) * 1000, 2),
-        o2=round(random.uniform(0.0, 1.0) * 100, 2),
-        iris=random.choice(["green", "blue", "brown", "hazel"]),
-        pulse=random.randint(55, 110),
-        elapsed=0.0,
-    )
+_FIELD_NAMES = {f.name for f in fields(SensorReading)}
 
 
-BACKENDS = {"mock": _read_mock}
+def _random_values():
+    return {
+        "co2": round(random.uniform(300, 1000), 1),
+        "o2": round(random.uniform(19.0, 21.0), 2),
+        "pupil_dilation": round(random.uniform(2.0, 6.0), 2),
+        "pulse": random.randint(55, 110),
+        "reaction_time": round(random.uniform(0.3, 2.5), 2),
+    }
 
 
 class SensorHub:
-    """Polls a sensor backend on a background thread and holds the latest reading."""
-
-    def __init__(self, backend="mock", poll_interval=1.0):
-        if backend not in BACKENDS:
-            raise ValueError(f"unknown sensor backend: {backend!r}")
-        self._read = BACKENDS[backend]
+    def __init__(self, poll_interval=1.0):
         self._poll_interval = poll_interval
         self._lock = threading.Lock()
         self._start_time = time.monotonic()
-        self._latest = self._with_elapsed(self._read())
+        self._overrides = {}
+        self._latest = self._generate()
         self._stop = threading.Event()
         self._thread = None
 
-    def _with_elapsed(self, reading):
-        return SensorReading(
-            co2=reading.co2,
-            o2=reading.o2,
-            iris=reading.iris,
-            pulse=reading.pulse,
-            elapsed=time.monotonic() - self._start_time,
-        )
+    def _generate(self):
+        values = _random_values()
+        values.update(self._overrides)
+        values["elapsed"] = time.monotonic() - self._start_time
+        return SensorReading(**values)
+
+    def override(self, field, value):
+        if field not in _FIELD_NAMES or field == "elapsed":
+            raise ValueError(f"unknown sensor field: {field!r}")
+        with self._lock:
+            self._overrides[field] = value
+            self._latest = self._generate()
+
+    def clear_override(self, field):
+        with self._lock:
+            self._overrides.pop(field, None)
 
     def start(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -69,7 +74,7 @@ class SensorHub:
     def _run(self):
         while not self._stop.is_set():
             with self._lock:
-                self._latest = self._with_elapsed(self._read())
+                self._latest = self._generate()
             self._stop.wait(self._poll_interval)
 
     def snapshot(self):

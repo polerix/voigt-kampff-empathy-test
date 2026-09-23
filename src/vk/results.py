@@ -1,4 +1,7 @@
-"""Persists Voight-Kampff test results as CSV, one row per answered question."""
+"""Persists one CSV row per answered question: the expected-response
+reference, the deviation level the operator puppeteered, the fake sensor
+snapshot at that moment, and how long the question ran.
+"""
 import csv
 import datetime
 import os
@@ -8,14 +11,19 @@ from dataclasses import asdict, dataclass
 @dataclass
 class ResultRecord:
     timestamp: str
-    question: str
-    time_taken: float
-    response: str
-    verdict: str
+    question_index: int
+    expected_response: str
+    deviation: float
+    co2: float
+    o2: float
+    pupil_dilation: float
+    pulse: int
+    reaction_time: float
+    duration: float
 
 
 class ResultsLog:
-    FIELDNAMES = ["timestamp", "question", "time_taken", "response", "verdict"]
+    FIELDNAMES = list(ResultRecord.__dataclass_fields__.keys())
 
     def __init__(self, path):
         self.path = path
@@ -26,13 +34,18 @@ class ResultsLog:
             with open(path, "w", newline="") as f:
                 csv.DictWriter(f, fieldnames=self.FIELDNAMES).writeheader()
 
-    def record(self, question, time_taken, response, verdict="pending"):
+    def record(self, question_index, expected_response, deviation, sensors, duration):
         entry = ResultRecord(
             timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
-            question=question,
-            time_taken=round(time_taken, 2),
-            response=response,
-            verdict=verdict,
+            question_index=question_index,
+            expected_response=expected_response,
+            deviation=round(deviation, 1),
+            co2=sensors["co2"],
+            o2=sensors["o2"],
+            pupil_dilation=sensors["pupil_dilation"],
+            pulse=sensors["pulse"],
+            reaction_time=sensors["reaction_time"],
+            duration=round(duration, 2),
         )
         with open(self.path, "a", newline="") as f:
             csv.DictWriter(f, fieldnames=self.FIELDNAMES).writerow(asdict(entry))

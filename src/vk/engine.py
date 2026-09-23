@@ -1,54 +1,87 @@
-"""Ties sensors, questions, results and the terminal UI into one test run."""
+"""Ties the fixed question script to the A/V button.
+
+While A/V is active, the current question counts down on its own timer and
+auto-advances when it expires; the A/V button pauses/resumes that
+countdown. There is no keyboard and no on-screen question text - the agent
+reads the script from paper. This module only drives timing, the
+subject-facing display readout, the stimulus-tone cue at each boundary, and
+the results log.
+"""
+import threading
 import time
 
-from .input import NonBlockingConsole
-from .interface import TerminalUI
 from .questions import load_questions
 from .results import ResultsLog
-from .sensors import SensorHub
-from .state import SharedState
 
 
 class TestSession:
-    def __init__(self, config):
-        self.config = config
-        self.sensors = SensorHub(backend=config["sensor_backend"], poll_interval=config["sensor_poll_interval"])
+    def __init__(self, config, hardware, sensors):
+        self.hardware = hardware
+        self.sensors = sensors
         self.results = ResultsLog(config["results_path"])
-        self.ui = TerminalUI()
         self.questions = load_questions(config["questions_path"])
-        self.state = SharedState.instance()
+        self.index = 0
+        self.running = False
+        self._question_start = time.monotonic()
+        self._lock = threading.Lock()
+        self._thread = None
+        self._stop = threading.Event()
+        self.hardware.on_av_toggle(self._on_av_toggle)
 
-    def run(self):
+    def start(self):
         self.sensors.start()
-        self.state.set_status("running")
-        try:
-            for question in self.questions:
-                self._ask(question)
-        finally:
-            self.sensors.stop()
-            self.state.set_status("idle")
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
 
-    def _ask(self, question):
-        start = time.monotonic()
-        response = ""
-        with NonBlockingConsole() as console:
-            while True:
-                elapsed = time.monotonic() - start
-                time_left = max(0.0, question.time_limit - elapsed)
+    def stop(self):
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=1)
+        self.sensors.stop()
+
+    def _on_av_toggle(self, active):
+        with self._lock:
+            self.running = active
+            if active:
+                self._question_start = time.monotonic()
+                self._push_display_locked()
+
+    def jump_to(self, index):
+        """Service-mode override to jump to a specific question."""
+        with self._lock:
+            self.index = max(0, min(len(self.questions) - 1, index))
+            self._question_start = time.monotonic()
+            self._push_display_locked()
+
+    def set_deviation(self, value):
+        self.hardware.displays.set_deviation(value)
+
+    def _push_display_locked(self):
+        question = self.questions[self.index]
+        reading = self.sensors.snapshot()
+        self.hardware.displays.start_question(self.index, question.expected_response, reading.__dict__)
+
+    def _run(self):
+        while not self._stop.is_set():
+            with self._lock:
+                running = self.running
+                index = self.index
+                elapsed = time.monotonic() - self._question_start
+            if running:
                 reading = self.sensors.snapshot()
-                self.ui.show_question(question, reading, time_left)
-                self.state.update(
-                    question=question.text,
-                    reading=reading,
-                    time_left=time_left,
-                    time_limit=question.time_limit,
-                )
-                if time_left <= 0:
-                    break
-                key = console.get_data()
-                if key in ("\r", "\n"):
-                    break
-                if key:
-                    response += key
-                time.sleep(0.2)
-        self.results.record(question.text, time.monotonic() - start, response)
+                self.hardware.displays.update_sensors(reading.__dict__)
+                question = self.questions[index]
+                if elapsed >= question.time_limit:
+                    self.results.record(
+                        question_index=index,
+                        expected_response=question.expected_response,
+                        deviation=self.hardware.displays.snapshot()["deviation"],
+                        sensors=reading.__dict__,
+                        duration=elapsed,
+                    )
+                    self.hardware.sounds.play("stimulus_tone")
+                    with self._lock:
+                        self.index = (index + 1) % len(self.questions)
+                        self._question_start = time.monotonic()
+                        self._push_display_locked()
+            time.sleep(0.2)

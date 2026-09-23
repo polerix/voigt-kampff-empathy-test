@@ -7,29 +7,21 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <div class="crt">
-    <div class="panel">
-      <h1>VOIGHT-KAMPFF EMPATHY TEST</h1>
-      <p>
-        A software emulation of the Voight-Kampff empathy test from <em>Blade Runner</em>
-        and <em>Do Androids Dream of Electric Sheep?</em> &mdash; a terminal interview engine
-        correlating fictional biometric readings against a question bank, built to run
-        on a Raspberry Pi.
-      </p>
-      <p>
-        This is a personal, non-commercial project. No ownership of the Voight-Kampff
-        name, <em>Blade Runner</em>, or associated intellectual property is claimed.
-      </p>
-      <p>
-        <a href="/dashboard">Live operator dashboard &rarr;</a><br />
-        <a href="https://github.com/polerix/voigt-kampff-empathy-test">Source on GitHub &rarr;</a>
-      </p>
-      <p>
-        Design notes on the project's visual and sound identity &mdash; its kinship with
-        the <em>Blade Runner</em> ESPER machine and Spinner cockpit &mdash; live in
-        <a href="https://github.com/polerix/voigt-kampff-empathy-test/blob/main/docs/design/aesthetic.md">docs/design/aesthetic.md</a>.
-      </p>
-    </div>
+  <h1>Voight-Kampff Empathy Test</h1>
+  <div class="panel">
+    <p>Software emulation of the Voight-Kampff empathy test prop: token-gated
+    control panel, fixed question script timed off the A/V button, and
+    subject-facing readout screens. Full description in the repo README.</p>
+    <p>Hardware backend: <strong>{{ backend }}</strong>
+      {% if backend == "mock" %}(no prop attached - this is the software test site){% else %}(driving the real prop){% endif %}
+    </p>
+    <p>
+      <a href="/console">Operator / puppeteer console &rarr;</a><br />
+      <a href="/display/1">Subject display 1 &rarr;</a> ·
+      <a href="/display/2">Subject display 2 &rarr;</a> ·
+      <a href="/display/3">Subject display 3 &rarr;</a><br />
+      <a href="https://github.com/polerix/voigt-kampff-empathy-test">Source on GitHub &rarr;</a>
+    </p>
   </div>
 </body>
 </html>

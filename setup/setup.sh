@@ -1,11 +1,11 @@
 #!/bin/bash
 # Bootstrap a Raspberry Pi (or any Linux box) to run the Voight-Kampff
-# empathy test engine and its web console.
+# web console.
 set -euo pipefail
 
 echo "Updating system and installing dependencies..."
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip alsa-utils
+sudo apt install -y python3 python3-venv python3-pip
 
 echo "Creating virtual environment..."
 python3 -m venv .venv
@@ -15,11 +15,9 @@ source .venv/bin/activate
 echo "Installing Python packages..."
 pip install -r requirements.txt
 
-echo "Generating placeholder sound cues (replace with real audio later)..."
-.venv/bin/python setup/generate_placeholder_sounds.py
-
 echo "Setup complete."
-echo "Run the web console (defaults to hardware_backend=mock):"
+echo "Run the web console (defaults to hardware_backend=mock, no broker needed):"
 echo "  .venv/bin/python web/server.py"
-echo "To drive the real prop, set hardware_backend to \"real\" in a config"
-echo "file and point VK_CONFIG at it before running."
+echo "To talk to the real VK prop bus, write a JSON config with"
+echo "  \"hardware_backend\": \"real\" and the right mqtt_host, then run:"
+echo "  VK_CONFIG=path/to/config.json .venv/bin/python web/server.py"

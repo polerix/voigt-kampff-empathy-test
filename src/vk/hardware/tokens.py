@@ -1,21 +1,21 @@
-"""Security token detection for the token drawer.
+"""Console-side security gate for the token drawer.
 
-The drawer opens on a manual latch spring (no motor involved); a token
-(RFID tag or magnetic card, backend-dependent) is placed inside and the
-drawer is closed. There is no username or password - the currently-detected
-token's role (from config) is the entire auth model:
+This is NOT enforced by the real device: Trevor hasn't integrated the
+drawer token into Tyrell/Owl at all yet, so a "real" command still reaches
+the prop regardless of what this reports. It exists purely so the web
+console itself doesn't let someone poke the real arm/bellows without
+deliberately "unlocking" it first - a software seatbelt, not a hardware
+one. Once/if drawer detection lands on the device side, wire a real
+backend in here to match it.
 
-  no token         -> "locked"   (button LEDs stay off, no test can run)
-  operator token   -> "operator" (normal test mode)
-  service token    -> "service"  (GPIO check, motion/timing calibration)
+  no token         -> "locked"   (console UI keeps controls disabled)
+  operator token   -> "operator" (normal console use)
+  service token    -> "service"  (bus diagnostics, question-script overrides)
 """
 import threading
 
 
 class _MockTokenBackend:
-    """Software-only: the token id is set programmatically (from the
-    puppeteer console), standing in for a reader with no hardware attached."""
-
     def __init__(self):
         self._token_id = None
 
@@ -27,20 +27,14 @@ class _MockTokenBackend:
 
 
 class _RFIDTokenBackend:
-    """TODO: real backend for an I2C/SPI RFID reader (e.g. MFRC522).
-
-    Not implemented - no reader hardware available to test against here.
-    """
+    """TODO: not built anywhere yet, on this console or on the device."""
 
     def read(self):
         raise NotImplementedError("RFID token backend not wired up yet")
 
 
 class _MagneticTokenBackend:
-    """TODO: real backend for a magnetic-stripe or reed/hall sensor reader.
-
-    Not implemented - no reader hardware available to test against here.
-    """
+    """TODO: not built anywhere yet, on this console or on the device."""
 
     def read(self):
         raise NotImplementedError("magnetic token backend not wired up yet")
@@ -63,7 +57,6 @@ class TokenReader:
         self._lock = threading.Lock()
 
     def set_mock_token(self, token_id):
-        """Only valid with the mock backend; used by the test-software site."""
         if not isinstance(self._backend, _MockTokenBackend):
             raise RuntimeError("set_mock_token requires the mock token backend")
         with self._lock:

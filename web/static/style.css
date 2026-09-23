@@ -28,6 +28,11 @@ h1 {
   margin: 0 0 1rem;
 }
 
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
 .panel {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -40,6 +45,7 @@ h1 {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+  margin-bottom: 0.5rem;
 }
 
 .field {
@@ -50,9 +56,9 @@ h1 {
   color: var(--muted);
 }
 
-button {
+button, select {
   font: inherit;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 4px;
   border: 1px solid var(--border);
   background: #f5f5f5;
@@ -63,28 +69,9 @@ button:hover {
   background: #eaeaea;
 }
 
-button.active {
-  background: var(--ok);
-  color: white;
-  border-color: var(--ok);
-}
-
-button.locked {
-  opacity: 0.5;
+button:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
-}
-
-.led {
-  display: inline-block;
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 50%;
-  background: var(--border);
-  margin-right: 0.4rem;
-}
-
-.led.on {
-  background: var(--ok);
 }
 
 .badge {
@@ -95,12 +82,12 @@ button.locked {
   border: 1px solid var(--border);
 }
 
-.badge.locked {
+.badge.locked, .badge.offline, .badge.down {
   border-color: var(--danger);
   color: var(--danger);
 }
 
-.badge.operator {
+.badge.operator, .badge.online, .badge.up {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -108,6 +95,11 @@ button.locked {
 .badge.service {
   border-color: var(--warn);
   color: var(--warn);
+}
+
+.badge.unknown {
+  border-color: var(--muted);
+  color: var(--muted);
 }
 
 table {
@@ -124,6 +116,12 @@ td, th {
 
 a {
   color: var(--accent);
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 0.85rem;
+  min-height: 1.2em;
 }
 
 .kiosk {

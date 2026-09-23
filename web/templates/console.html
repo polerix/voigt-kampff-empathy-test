@@ -12,9 +12,11 @@
   <div class="panel">
     <div class="row">
       <span>Security: <span id="role-badge" class="badge locked">locked</span></span>
-      <span>Backend: <strong id="backend-label">-</strong></span>
+      <span>Bus: <span id="bus-badge" class="badge down">down</span></span>
+      <span>Tyrell: <span id="tyrell-badge" class="badge unknown">unknown</span></span>
+      <span>vk/state: <strong id="vk-state">-</strong></span>
     </div>
-    <div class="row" id="mock-token-row" style="margin-top:0.75rem; display:none;">
+    <div class="row" id="mock-token-row" style="display:none;">
       <div class="field">
         <label for="token-id">Mock token id (test-software site only)</label>
         <input id="token-id" type="text" placeholder="OPERATOR-1 / SERVICE-1 / blank to remove" />
@@ -22,26 +24,111 @@
       <button onclick="setToken()">Place token</button>
       <button onclick="setToken(true)">Remove token</button>
     </div>
+    <p class="error-text" id="global-error"></p>
   </div>
 
   <div class="panel">
-    <h2 style="font-size:1rem;">Buttons</h2>
+    <h2>Arm</h2>
     <div class="row">
-      <button id="btn-arm" onclick="pressButton('arm')"><span class="led" id="led-arm"></span>Camera arm</button>
-      <button id="btn-bellows" onclick="pressButton('bellows')"><span class="led" id="led-bellows"></span>Bellows</button>
-      <button id="btn-av" onclick="pressButton('av')"><span class="led" id="led-av"></span>A/V record</button>
-      <button onclick="focusPulse()">Manual focus pulse</button>
+      <button onclick="armCmd('raise')">Raise</button>
+      <button onclick="armCmd('lower')">Lower</button>
+      <button onclick="armCmd('home')">Home</button>
+      <button onclick="armCmd('abort')">Abort</button>
+      <button onclick="armCmd('state')">Request state</button>
     </div>
-    <p id="button-message" style="color:#b00020;"></p>
+    <div class="row">
+      <button onclick="armCmd('sethome')">Set home here</button>
+      <button onclick="armCmd('forget')">Forget home</button>
+      <button onclick="armCmd('boothome-on')">Boot-home on</button>
+      <button onclick="armCmd('boothome-off')">Boot-home off</button>
+    </div>
+    <div class="row">
+      <span>Shoulder:</span>
+      <button onclick="jointCmd('shoulder','extend')">Extend</button>
+      <button onclick="jointCmd('shoulder','retract')">Retract</button>
+    </div>
+    <div class="row">
+      <span>Elbow:</span>
+      <button onclick="jointCmd('elbow','extend')">Extend</button>
+      <button onclick="jointCmd('elbow','retract')">Retract</button>
+      <button onclick="jointCmd('elbow','stop')">Stop</button>
+    </div>
+    <div class="row">
+      <span>Wrist:</span>
+      <button onclick="jointCmd('wrist','extend')">Extend</button>
+      <button onclick="jointCmd('wrist','retract')">Retract</button>
+    </div>
   </div>
 
   <div class="panel">
-    <h2 style="font-size:1rem;">Question script</h2>
-    <p>Index <span id="question-index">-</span> / <span id="question-count">-</span> &mdash; timer runs only while A/V is active.</p>
+    <h2>Bellows / Worker</h2>
+    <div class="row">
+      <span>Bellows:</span>
+      <button onclick="bellowsCmd('on')">On</button>
+      <button onclick="bellowsCmd('off')">Off</button>
+    </div>
+    <div class="row">
+      <span>Worker macro (arm + bellows):</span>
+      <button onclick="workerCmd('start')">Start</button>
+      <button onclick="workerCmd('stop')">Stop</button>
+    </div>
+    <div class="row">
+      <span>A/V recording:</span>
+      <button disabled title="Local subprocess on Tyrell's Pi, outside the bus - not controllable from here yet">Not on the bus</button>
+    </div>
   </div>
 
   <div class="panel">
-    <h2 style="font-size:1rem;">Puppeteered readout (shown on subject screens)</h2>
+    <h2>LEDs</h2>
+    <div class="row">
+      <span>Eye:</span> <button onclick="ledCmd('eye', true)">On</button> <button onclick="ledCmd('eye', false)">Off</button>
+      <span>Buttons:</span> <button onclick="ledCmd('buttons', true)">On</button> <button onclick="ledCmd('buttons', false)">Off</button>
+      <button onclick="ledCmd('buttons_boot')">Boot pattern</button>
+      <span>Movie:</span> <button onclick="ledCmd('movie', true)">On</button> <button onclick="ledCmd('movie', false)">Off</button>
+      <span>VUs:</span> <button onclick="ledCmd('vus', true)">On</button> <button onclick="ledCmd('vus', false)">Off</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Owl displays</h2>
+    <table id="owl-table">
+      <thead><tr><th>Display</th><th>Static</th><th>Roll</th><th>FX</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="row" style="margin-top:0.5rem;">
+      <button onclick="owlFxReset()">Reset all FX to default</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Owl sfx / screen control</h2>
+    <div class="row">
+      <div class="field">
+        <label for="sfx-select">sfx event</label>
+        <select id="sfx-select">
+          {% for event in sfx_events %}<option value="{{ event }}">{{ event }}</option>{% endfor %}
+        </select>
+      </div>
+      <button onclick="owlSfx()">Play</button>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="screen-select">screen_ctl payload</label>
+        <select id="screen-select">
+          {% for payload in screen_ctl_payloads %}<option value="{{ payload }}">{{ payload }}</option>{% endfor %}
+        </select>
+      </div>
+      <button onclick="owlScreenCtl()">Send</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Interview script</h2>
+    <p>Index <span id="question-index">-</span> / <span id="question-count">-</span> — <span id="running-label">paused</span></p>
+    <div class="row">
+      <button onclick="interviewStart()">Start / resume</button>
+      <button onclick="interviewPause()">Pause</button>
+    </div>
     <div class="row">
       <div class="field">
         <label for="deviation">Deviation (0-100)</label>
@@ -56,68 +143,65 @@
   </div>
 
   <div class="panel" id="service-panel" style="display:none;">
-    <h2 style="font-size:1rem;">Service mode</h2>
+    <h2>Service mode</h2>
     <div class="row">
       <div class="field">
         <label for="jump-index">Jump to question index</label>
         <input id="jump-index" type="number" min="0" value="0" />
       </div>
       <button onclick="jumpTo()">Jump</button>
-      <button onclick="gpioCheck()">Run GPIO check</button>
+      <button onclick="checkBus()">Check bus</button>
     </div>
     <pre id="service-output"></pre>
   </div>
 
 <script>
 const SENSOR_FIELDS = ["co2", "o2", "pupil_dilation", "pulse", "reaction_time"];
+const OWL_FX_KNOBS = { displayA: ["teeth", "spike", "tilt", "pulse"], displayB: ["shape", "tuck", "pulse"], displayM: [] };
 
 async function api(path, body) {
   const opts = { method: "POST", headers: { "Content-Type": "application/json" } };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
-  return res.json();
+  const data = await res.json();
+  document.getElementById("global-error").textContent = data.error || "";
+  if (!data.error) render(data);
+  return data;
 }
 
 function setToken(remove) {
   const value = remove ? null : document.getElementById("token-id").value.trim() || null;
-  api("/api/token", { token_id: value }).then(render);
+  api("/api/token", { token_id: value });
 }
 
-function pressButton(name) {
-  document.getElementById("button-message").textContent = "";
-  fetch(`/api/button/${name}`, { method: "POST" }).then(async (res) => {
-    const body = await res.json();
-    if (!body.ok) document.getElementById("button-message").textContent = body.reason;
-    render(body.state);
-  });
-}
-
-function focusPulse() {
-  api("/api/focus");
-}
-
+function armCmd(action) { api("/api/arm", { action }); }
+function jointCmd(joint, action) { api(`/api/arm/${joint}`, { action }); }
+function bellowsCmd(action) { api("/api/bellows", { action }); }
+function workerCmd(action) { api("/api/worker", { action }); }
+function ledCmd(group, on) { api("/api/leds", { group, on }); }
+function owlFxReset() { api("/api/owl/fx-reset"); }
+function owlSfx() { api("/api/owl/sfx", { event: document.getElementById("sfx-select").value }); }
+function owlScreenCtl() { api("/api/owl/screen-ctl", { payload: document.getElementById("screen-select").value }); }
+function interviewStart() { api("/api/interview/start"); }
+function interviewPause() { api("/api/interview/pause"); }
 function setDeviation(value) {
   document.getElementById("deviation-value").textContent = value;
-  api("/api/deviation", { value: Number(value) }).then(render);
+  api("/api/interview/deviation", { value: Number(value) });
 }
-
 function overrideSensor(field, raw) {
   const value = raw === "" ? null : Number(raw);
-  api("/api/sensor-override", { field, value }).then(render);
+  api("/api/interview/sensor-override", { field, value });
 }
-
 function jumpTo() {
   const index = Number(document.getElementById("jump-index").value);
-  api("/api/jump", { index }).then((state) => {
-    if (state.error) document.getElementById("service-output").textContent = state.error;
-    else render(state);
-  });
+  api("/api/interview/jump", { index });
 }
-
-function gpioCheck() {
-  api("/api/service/gpio-check").then((result) => {
-    document.getElementById("service-output").textContent = JSON.stringify(result, null, 2);
-  });
+async function checkBus() {
+  const res = await fetch("/api/service/check-bus", { method: "POST" });
+  document.getElementById("service-output").textContent = JSON.stringify(await res.json(), null, 2);
+}
+async function ownDisplayCmd(name, kind, value) {
+  await api(`/api/owl/display/${name}/${kind}`, { value: Number(value) });
 }
 
 function render(state) {
@@ -125,19 +209,21 @@ function render(state) {
   roleBadge.textContent = state.security_role;
   roleBadge.className = "badge " + state.security_role;
 
-  document.getElementById("backend-label").textContent = state.backend;
-  document.getElementById("mock-token-row").style.display = state.backend === "mock" ? "flex" : "none";
+  const busBadge = document.getElementById("bus-badge");
+  busBadge.textContent = state.bus.bus_up ? "up" : "down";
+  busBadge.className = "badge " + (state.bus.bus_up ? "up" : "down");
+
+  const tyrellBadge = document.getElementById("tyrell-badge");
+  tyrellBadge.textContent = state.bus.tyrell_status;
+  tyrellBadge.className = "badge " + state.bus.tyrell_status;
+
+  document.getElementById("vk-state").textContent = state.bus.vk_state || "-";
+  document.getElementById("mock-token-row").style.display = state.bus.backend === "mock" ? "flex" : "none";
   document.getElementById("service-panel").style.display = state.security_role === "service" ? "block" : "none";
 
-  for (const name of ["arm", "bellows", "av"]) {
-    const btn = document.getElementById(`btn-${name}`);
-    const info = state.buttons[name];
-    btn.className = state.security_role === "locked" ? "locked" : (info.active ? "active" : "");
-    document.getElementById(`led-${name}`).className = "led" + (info.led ? " on" : "");
-  }
-
-  document.getElementById("question-index").textContent = state.session.index;
-  document.getElementById("question-count").textContent = state.session.question_count;
+  document.getElementById("question-index").textContent = state.interview.index;
+  document.getElementById("question-count").textContent = state.interview.question_count;
+  document.getElementById("running-label").textContent = state.interview.running ? "running" : "paused";
   document.getElementById("deviation").value = state.display.deviation;
   document.getElementById("deviation-value").textContent = state.display.deviation;
 
@@ -149,6 +235,21 @@ function render(state) {
     row.innerHTML = `<td>${field}</td><td>${sensors[field] ?? "-"}</td>` +
       `<td><input type="number" step="any" placeholder="override" onchange="overrideSensor('${field}', this.value)" /></td>`;
     rows.appendChild(row);
+  }
+
+  const owlBody = document.querySelector("#owl-table tbody");
+  owlBody.innerHTML = "";
+  for (const [name, d] of Object.entries(state.owl)) {
+    const fxCells = OWL_FX_KNOBS[name].map(
+      (knob) => `${knob} <input type="number" min="0" max="100" value="${d.fx[knob]}" style="width:3.5rem"
+        onchange="ownDisplayCmd('${name}','fx/${knob}', this.value)" />`
+    ).join(" ");
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${name}</td>` +
+      `<td><input type="number" min="0" max="100" value="${d.static}" style="width:3.5rem" onchange="ownDisplayCmd('${name}','static', this.value)" /></td>` +
+      `<td><input type="number" min="0" max="100" value="${d.roll}" style="width:3.5rem" onchange="ownDisplayCmd('${name}','roll', this.value)" /></td>` +
+      `<td>${fxCells}</td>`;
+    owlBody.appendChild(row);
   }
 }
 

@@ -1,90 +1,77 @@
 # Device reference
 
-What the physical prop actually does, as the software models it. Replaces
-the earlier CRT/ESPER-Spinner aesthetic notes — the brief now is accuracy
-and functionality, not a visual theme, so this document is the real I/O
-reference instead.
+What this repo's web console actually controls, and how it's wired to the
+real prop.
 
-## Token drawer / security
+## Two separate hardware efforts
 
-A manual latch spring opens the drawer (no motor). An RFID or magnetic
-token is placed inside, the drawer is closed. There is no username or
-password — the currently-present token's role is the entire auth model:
+This repo's software (the empathy-test question script, fake
+physiological readout, results log) is one concern. The physical prop
+itself — arm, bellows, LEDs, displays, sound — is a separate, more mature
+codebase: Trevor Gertridge's `BladeRunnerVK`, a distributed cluster of
+Raspberry Pis talking over MQTT (mosquitto on `owl.local:1883`). This
+repo's `src/vk/hardware/` is a thin client against that bus, not a
+reimplementation of it — see
+[docs/design/mqtt-contract.md](mqtt-contract.md) for the exact wire
+protocol, mirrored from `VK-MQTT-topic-contract.md` in that repo.
 
-- No token → `locked`. Button LEDs stay off; nothing can run.
-- Operator token → `operator`. Normal test mode.
-- Service token → `service`. GPIO check, motion/timing calibration —
-  a different token from the operator one.
+## Tyrell (worker): the physical prop
 
-See `src/vk/hardware/tokens.py`. The real reader (RFID vs magnetic) isn't
-picked yet — both are stubbed pending the actual hardware.
+- **Arm** is three independently-commanded joints — shoulder, elbow,
+  wrist — plus a macro-level `arm` topic (raise/lower/home/abort/etc.).
+  There's no single "raised" boolean; Tyrell tracks its own homing state.
+- **Bellows** is a single on/off servo.
+- **LEDs**: four independent groups — eye, buttons (plus a boot pattern),
+  movie, VU meters. Not one LED per panel button.
+- **`worker start`/`stop`** is a macro that expands into arm + bellows
+  commands — the closest real equivalent to "run the whole physical
+  performance."
+- **A/V recording is not on the bus.** Tyrell shells out to a local
+  camera/mic subprocess directly. This console can't observe or drive it;
+  `AVRecorder`'s real backend stays a stub until that changes.
+- **The token drawer isn't integrated on the device at all yet.** This
+  console's token gate is a software-only safety seatbelt — it stops the
+  console UI from sending real commands without being "unlocked" first,
+  but Tyrell and Owl don't check it themselves.
 
-## The three buttons
+## Owl (master): displays and sound
 
-Square white buttons, pressed in order: camera arm → pheromone bellows
-(fan) → A/V recording. Each toggles its mechanism between active and
-suspended; its LED only lights with a token present. Activation and
-suspension each have their own sound cue. The current code enforces the
-order as a hard interlock (a button won't arm until the ones before it are
-active) — flagged as an assumption in `hardware/buttons.py`, since the spec
-describes "sequentially" without saying explicitly whether it's enforced.
+Two OLEDs (`displayA`, `displayB`) plus one HDMI (`displayM`), each with
+CRT static/roll levels; A and B additionally have glitch-FX knobs (teeth/
+spike/tilt/pulse on A, shape/tuck/pulse on B) — this is a real glitch/iris
+FX engine, not literal boot text. A 10-mode screen state machine
+(`BOOT/MAIN/SHELL/INQUIRY/DEBUG/VIDEO/OFF/STATIC/CALIBRATION/VKOS`)
+broadcasts on `vk/state`. Owl also owns the prop's actual sound output
+(`sfx`: button/function/iris/screen/bellows_on/bellows_off/static_on/
+static_off) — there is no separate local sound system in this repo
+anymore; a previous version's `hardware/sounds.py` played placeholder
+tones locally and has been retired now that Owl's real `sfx` vocabulary is
+known.
 
-The camera on the arm has its own manual focus button, separate from the
-three panel buttons and not gated by the token.
+Owl has no reply topic; this console tracks "last commanded" values for
+display/FX/sfx, not confirmed state, except for `vk/state` and
+`vk/glitch`, which Owl does broadcast.
 
-## Screens
+## This repo's own layer, on top
 
-Three subject-facing displays. They never show question text — the agent
-reads the fixed script aloud from a paper copy — and take no input. On
-boot they show a status/accreditation sequence (real copy TODO — see
-`web/templates/display.html`). During a test they show the fake
-physiological readout and the operator-set expected-response reference and
-deviation level.
+The question script (`src/vk/questions.py`, `data/questions.csv`), fake
+physiological readout (`src/vk/sensors.py`), and results log
+(`src/vk/results.py`) are independent of the Tyrell/Owl bus — they model
+the empathy-test *interview*, not the prop hardware. The `/display/<n>`
+kiosk pages currently show this application's own simulated readout, not
+Owl's real OLED/HDMI content. Whether/how those should eventually be the
+same thing — e.g. routing the interview readout onto Owl's real displays
+via `main_quiz_*` screen_ctl payloads — is still open; nothing currently
+assumes they're connected.
 
-## Fake physiological data
+The question-script timer used to be tied to an "A/V button." Since A/V
+turned out to be off-bus, the timer now has its own explicit start/pause
+control in the console, decoupled from any physical button.
 
-There's no real CO2, O2, pupillary, or reaction-time sensor — this is a
-prop, and fake data is used on purpose, not as a placeholder for something
-real later (`src/vk/sensors.py`). Values free-run as a random walk; any
-field can be pinned from the console for a specific run.
+## What's still open
 
-## Question script and the A/V button
-
-The questions are always the same, fixed order, no randomization
-(`src/vk/data/questions.csv`). The A/V button starts and pauses the
-question timer: each question counts down on its own time limit while A/V
-is active, auto-advancing at zero; pausing freezes the countdown. A
-stimulus tone plays at each question boundary.
-
-`expected_response` per question is calibration data that belongs to the
-physical test — the CSV ships with it blank (`TODO`) rather than invented.
-
-## Sounds
-
-Four events: button activation, button suspension, a deviation alert, and
-the per-question stimulus tone. No audio assets are checked in — see
-`sounds/README.md` for the expected filenames and a script that generates
-placeholder tones so the trigger wiring is testable before real recordings
-exist.
-
-## The web console
-
-One Flask app (`web/server.py`), not three separate sites:
-
-- `hardware_backend: "mock"` in config → the "test the software" site:
-  same UI, no prop attached.
-- `hardware_backend: "real"` → the "puppeteer the prop" site: same UI,
-  now driving actual GPIO/i2c/HDMI.
-
-`/console` is the puppeteer control surface (buttons, focus, deviation,
-sensor overrides, service-mode panel). `/display/<n>` is what each of the
-three subject-facing screens shows. `/api/state` is the JSON both poll.
-
-## What's still a stub
-
-Real GPIO pin numbers (`config.gpio_pins`), the RFID/magnetic reader
-choice, the arm motor / bellows relay / A/V capture pipeline, and GPIO
-diagnostics/motion calibration in service mode are all documented
-`NotImplementedError` stubs — there's no hardware here to wire them up
-against. Fill in `config.gpio_pins` and swap `hardware_backend` to `"real"`
-once the actual wiring is known.
+- Whether/how the interview layer's readout should route onto Owl's real
+  displays.
+- Token drawer integration, if/when it gets built on the device side.
+- A/V recording, if it's ever exposed over the bus instead of being a
+  local subprocess.

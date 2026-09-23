@@ -2,9 +2,9 @@
 
 A software emulation of the Voight-Kampff empathy test prop from *Blade
 Runner* and, to some extent, the novel *Do Androids Dream of Electric
-Sheep?* — a token-gated control panel, a fixed question script timed off
-an A/V button, and subject-facing readout screens, meant to run on a
-Raspberry Pi.
+Sheep?* — a web console for the physical prop, plus the interview
+application (fixed question script, fake physiological readout, results
+log) that runs alongside it.
 
 The Voight-Kampff Empathy Test was designed to distinguish androids from
 humans by measuring their capacity for empathy. The test had limitations —
@@ -36,100 +36,82 @@ No ownership of the Voight-Kampff name, *Blade Runner*, or any associated
 intellectual property is claimed. This project is a personal work created
 for self-education and non-commercial purposes.
 
-## How the physical device works
-
-- A token drawer (manual latch spring, no motor) is the entire auth model —
-  no username or password. No token present means the three button LEDs
-  stay off and nothing can run. A separate service token unlocks GPIO
-  checks and motion/timing calibration instead of normal test mode.
-- Three square white buttons — camera arm, pheromone bellows (fan), A/V
-  recording — pressed in that order. Each toggles active/suspended, lights
-  its own LED once a token is present, and plays an activation or
-  suspension sound. The camera on the arm has its own manual focus button.
-- The A/V button starts and pauses the question script's timer. The
-  questions are always the same, fixed order — no randomization, and no
-  question text is ever shown on screen. A human agent reads each question
-  aloud from a paper copy of the same script.
-- Three subject-facing screens boot through a status/accreditation
-  sequence, then show the fake physiological readout plus an
-  operator-puppeteered expected-response reference and deviation level.
-  They take no input.
-- There's no real CO2/O2/pupil-dilation/reaction-time sensor — this is a
-  prop, so fake data is used, on purpose, permanently (not a placeholder
-  for real sensors later).
-- A web console, served over wifi from the Pi, has every control needed to
-  puppeteer the prop: buttons, focus, deviation, and fake-sensor overrides.
-
-Full reference: [docs/design/device.md](docs/design/device.md).
-
 ## Architecture
 
-One Flask app, not three separate sites, with a single backend switch:
-
-- `hardware_backend: "mock"` in config → run the whole stack with no prop
-  attached, for developing/testing the software itself.
-- `hardware_backend: "real"` → the same app drives actual GPIO/i2c/HDMI on
-  the Pi to puppeteer the physical prop.
+The physical prop is a separate, more mature project — Trevor Gertridge's
+`BladeRunnerVK`, a cluster of Raspberry Pis (Owl master, Tyrell worker)
+talking over MQTT. This repo doesn't reimplement that; it's a thin client
+against it, plus its own interview application layered on top. See
+[docs/design/device.md](docs/design/device.md) and
+[docs/design/mqtt-contract.md](docs/design/mqtt-contract.md) for the full
+picture.
 
 ```
 src/vk/
-  hardware/    tokens, buttons, actuators (arm/bellows/A-V), sounds,
-               displays, service-mode panel — mock and real backends
-  questions.py the fixed question script (data/questions.csv)
-  sensors.py   fake physiological data generator
-  results.py   per-question CSV log (expected response, deviation, sensors)
-  engine.py    ties the script to the A/V button's timer
+  hardware/
+    bus.py         MQTT client (VKBus) + MockBus for the no-broker test site
+    actuators.py    Tyrell: arm (shoulder/elbow/wrist), bellows, worker
+                    macro, LEDs, A/V stub
+    owl.py          Owl: OLED/HDMI static/roll/FX, sfx, screen_ctl
+    tokens.py       console-side security gate (not device-enforced)
+    controller.py   composes the above from config
+    service.py      service-mode: bus diagnostics, question-script overrides
+  questions.py, data/questions.csv   the fixed interview script
+  sensors.py         fake physiological data generator
+  results.py         per-question CSV log
+  engine.py           ties the script to an explicit start/pause control
 web/
-  server.py      Flask app: console, display kiosks, JSON API
-  templates/     index.html (status), console.html (operator/puppeteer),
-                 display.html (subject-facing kiosk, parameterized by screen #)
-docs/design/device.md        full device reference
-docs/interface-mockups/      boot-screen ASCII mockup
-sounds/                      placeholder tone generator + expected filenames
-setup/setup.sh               Raspberry Pi bootstrap script
+  server.py           Flask app: console, display kiosks, JSON API
+  templates/          index.html, console.html, display.html
 ```
+
+One app, one switch: `hardware_backend: "mock"` in config runs the whole
+stack with no broker attached (the "test the software" site);
+`hardware_backend: "real"` talks to the actual VK prop's MQTT broker (the
+"puppeteer the prop" site). Same console UI either way.
 
 ## Running it
 
 ```
 pip install -r requirements.txt
-python3 setup/generate_placeholder_sounds.py   # optional: placeholder audio
 python3 web/server.py
 ```
 
-Defaults to `hardware_backend: "mock"` — no prop needed. Open `/` for
+Defaults to `hardware_backend: "mock"` — no broker needed. Open `/` for
 status, `/console` to puppeteer it, `/display/1` (2, 3) for the
-subject-facing screens.
+subject-facing interview readout screens.
 
-To drive the real prop: write a JSON config with `"hardware_backend":
-"real"`, real `token_backend` (`"rfid"` or `"magnetic"`), `token_roles`,
-and `gpio_pins`, then run with `VK_CONFIG=path/to/config.json python3
-web/server.py`. The real actuator/token/sound backends are documented
-stubs (`NotImplementedError`) until that wiring is filled in — see
-`docs/design/device.md#whats-still-a-stub`.
+To talk to the real prop: write a JSON config with `"hardware_backend":
+"real"` and the right `mqtt_host`/`mqtt_port` (defaults to
+`owl.local:1883`), then run with `VK_CONFIG=path/to/config.json python3
+web/server.py`.
 
-On a fresh Raspberry Pi, `setup/setup.sh` installs Python, ALSA, creates a
+On a fresh Raspberry Pi, `setup/setup.sh` installs Python, creates a
 virtualenv, and installs dependencies.
 
-## What's deliberately not real
+## What's deliberately not real, or not yet wired up
 
-Fake sensor data (permanent, by design) and per-question
-`expected_response` text (calibration data that belongs to the physical
-test — `src/vk/data/questions.csv` ships with it blank). Not yet real:
-GPIO pin wiring, the RFID/magnetic token reader, the arm motor / bellows
-relay / A/V capture pipeline, and service-mode GPIO diagnostics /
-calibration.
+- Fake sensor data (permanent, by design) and per-question
+  `expected_response` text (calibration data that belongs to the physical
+  test — `src/vk/data/questions.csv` ships with it blank).
+- A/V recording — a local subprocess on Tyrell's Pi, outside the MQTT bus
+  entirely. Not controllable from this console.
+- The token drawer — not integrated into the physical prop at all yet.
+  This console's token gate is a software-only safety check.
+- Whether the interview readout should eventually route onto Owl's real
+  OLED/HDMI displays instead of this app's own `/display/<n>` pages.
 
 ## Related repos
 
-This project used to be split across three repos. They have been folded
-into this one and archived:
+This project used to be split across three repos, since folded into this
+one and archived:
 
 - `voight-kampff-model` held 3D-printable hardware files (servo/bellows
-  parts) for the physical build. Those are hardware design files, out of
-  scope for this repo's software-and-web focus, and are kept locally
-  rather than in git.
-- `Tyrel_Voight-Campff_Empathy_Test` turned out, on inspection, to be an
-  unrelated fork of a different project entirely (a terminal emulator for
-  *Alien: Isolation*'s MU/TH/UR computer) — wrong franchise, C instead of
-  Python. None of its code was carried over.
+  parts). Hardware design files, out of scope for this repo, kept locally.
+- `Tyrel_Voight-Campff_Empathy_Test` turned out to be an unrelated fork of
+  a different project (an *Alien: Isolation* terminal emulator) — wrong
+  franchise, C instead of Python. Nothing from it was carried over.
+
+The physical prop's actual driver code lives in Trevor Gertridge's
+[BladeRunnerVK](https://github.com/TrevorGertridge/BladeRunnerVK) — this
+repo talks to it over MQTT rather than vendoring or forking it.

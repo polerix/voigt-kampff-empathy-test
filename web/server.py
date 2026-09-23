@@ -1,5 +1,5 @@
 """The operator/puppeteer web console, the subject-facing display kiosks,
-and the JSON API that drives both.
+the 3D simulation view, and the JSON API that drives all three.
 
 One app, not two: hardware_backend="mock" in config is the "test the
 software" site (no broker needed); hardware_backend="real" is the
@@ -68,6 +68,11 @@ def console():
 @app.route("/display/<int:screen>")
 def display_page(screen):
     return render_template("display.html", screen=screen)
+
+
+@app.route("/simulation")
+def simulation():
+    return render_template("simulation.html")
 
 
 @app.route("/api/state")

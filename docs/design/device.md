@@ -68,6 +68,47 @@ The question-script timer used to be tied to an "A/V button." Since A/V
 turned out to be off-bus, the timer now has its own explicit start/pause
 control in the console, decoupled from any physical button.
 
+## 3D simulation (`/simulation`)
+
+A read-only Three.js view, separate from the console (which is the only
+page that can actually command anything). It polls the same `/api/state`
+as everything else and renders:
+
+- The arm as three pivoting segments (shoulder/elbow/wrist), matching the
+  real joint names.
+- The bellows as a cylinder that "breathes" while running.
+- The four LED groups as colored indicator spheres.
+
+**This is placeholder geometry, not the real prop model.** The intended
+real asset is GoldenArmor's Voight-Kampff 3D files, not yet integrated —
+see the comment block near the top of `simulation.html`'s script for the
+exact swap-in steps (drop a glTF/GLB at
+`web/static/models/golden-armor-vk.glb`, uncomment the `GLTFLoader`
+import, replace the placeholder group construction). Two things to settle
+before that mesh goes in:
+
+- **Format/poly count**: GoldenArmor's files are almost certainly sculpted
+  for 3D printing, not real-time rendering, and likely need decimating
+  before they're usable in a browser.
+- **Licensing**: these are paid files. Whether the actual mesh belongs in
+  this public repo at all (vs. staying local/gitignored, with only a
+  processed/optimized derivative committed, or not committed at all) is
+  an open question, not something to default on.
+
+**The animation is optimistic, not telemetry.** The MQTT contract has no
+joint-angle topic — Tyrell publishes command replies, not position. What
+you see is "last commanded direction, assumed to complete over ~1.5s,"
+tracked locally in `hardware/actuators.py` (`Arm.joint_state`,
+`Bellows.running`, `Leds.state` — all explicitly documented there as
+optimistic, not confirmed). If Tyrell is powered off, a command still
+"looks like" it happened here, exactly as the contract's own "two facts,
+not one" section warns about for any bus consumer.
+
+Three.js itself is vendored under `web/static/vendor/three/` rather than
+loaded from a CDN — the console is meant to run on a Pi that may have no
+general internet access, so a runtime CDN dependency would just be broken
+there.
+
 ## What's still open
 
 - Whether/how the interview layer's readout should route onto Owl's real
@@ -75,3 +116,7 @@ control in the console, decoupled from any physical button.
 - Token drawer integration, if/when it gets built on the device side.
 - A/V recording, if it's ever exposed over the bus instead of being a
   local subprocess.
+- The real GoldenArmor mesh in `/simulation` (format, poly count,
+  licensing - see above).
+- Real joint-position telemetry, if Tyrell ever publishes it - would
+  replace the optimistic animation with actual confirmed state.

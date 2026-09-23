@@ -2,9 +2,9 @@
 
 A software emulation of the Voight-Kampff empathy test prop from *Blade
 Runner* and, to some extent, the novel *Do Androids Dream of Electric
-Sheep?* — a web console for the physical prop, plus the interview
-application (fixed question script, fake physiological readout, results
-log) that runs alongside it.
+Sheep?* — a web console for the physical prop, a 3D simulation view, plus
+the interview application (fixed question script, fake physiological
+readout, results log) that runs alongside it.
 
 The Voight-Kampff Empathy Test was designed to distinguish androids from
 humans by measuring their capacity for empathy. The test had limitations —
@@ -41,8 +41,8 @@ for self-education and non-commercial purposes.
 The physical prop is a separate, more mature project — Trevor Gertridge's
 `BladeRunnerVK`, a cluster of Raspberry Pis (Owl master, Tyrell worker)
 talking over MQTT. This repo doesn't reimplement that; it's a thin client
-against it, plus its own interview application layered on top. See
-[docs/design/device.md](docs/design/device.md) and
+against it, plus its own interview application and a 3D simulation view
+layered on top. See [docs/design/device.md](docs/design/device.md) and
 [docs/design/mqtt-contract.md](docs/design/mqtt-contract.md) for the full
 picture.
 
@@ -51,7 +51,8 @@ src/vk/
   hardware/
     bus.py         MQTT client (VKBus) + MockBus for the no-broker test site
     actuators.py    Tyrell: arm (shoulder/elbow/wrist), bellows, worker
-                    macro, LEDs, A/V stub
+                    macro, LEDs, A/V stub - tracks last-commanded
+                    (optimistic, not confirmed) state for the 3D sim
     owl.py          Owl: OLED/HDMI static/roll/FX, sfx, screen_ctl
     tokens.py       console-side security gate (not device-enforced)
     controller.py   composes the above from config
@@ -61,8 +62,10 @@ src/vk/
   results.py         per-question CSV log
   engine.py           ties the script to an explicit start/pause control
 web/
-  server.py           Flask app: console, display kiosks, JSON API
-  templates/          index.html, console.html, display.html
+  server.py           Flask app: console, 3D sim, display kiosks, JSON API
+  templates/          index.html, console.html, simulation.html, display.html
+  static/vendor/three/  vendored three.js (MIT) - no CDN dependency
+  static/models/         real prop mesh goes here once available (not yet)
 ```
 
 One app, one switch: `hardware_backend: "mock"` in config runs the whole
@@ -78,8 +81,8 @@ python3 web/server.py
 ```
 
 Defaults to `hardware_backend: "mock"` — no broker needed. Open `/` for
-status, `/console` to puppeteer it, `/display/1` (2, 3) for the
-subject-facing interview readout screens.
+status, `/console` to puppeteer it, `/simulation` for the 3D view,
+`/display/1` (2, 3) for the subject-facing interview readout screens.
 
 To talk to the real prop: write a JSON config with `"hardware_backend":
 "real"` and the right `mqtt_host`/`mqtt_port` (defaults to
@@ -100,6 +103,11 @@ virtualenv, and installs dependencies.
   This console's token gate is a software-only safety check.
 - Whether the interview readout should eventually route onto Owl's real
   OLED/HDMI displays instead of this app's own `/display/<n>` pages.
+- The 3D simulation is placeholder geometry with optimistic (not
+  telemetry-confirmed) joint animation — see
+  [docs/design/device.md](docs/design/device.md#3d-simulation-simulation)
+  for the real GoldenArmor mesh swap-in point and why it isn't in yet
+  (format/poly-count/licensing, all unresolved).
 
 ## Related repos
 
@@ -114,4 +122,6 @@ one and archived:
 
 The physical prop's actual driver code lives in Trevor Gertridge's
 [BladeRunnerVK](https://github.com/TrevorGertridge/BladeRunnerVK) — this
-repo talks to it over MQTT rather than vendoring or forking it.
+repo talks to it over MQTT rather than vendoring or forking it. The
+intended 3D-simulation mesh is GoldenArmor's Voight-Kampff model — not yet
+integrated, see above.

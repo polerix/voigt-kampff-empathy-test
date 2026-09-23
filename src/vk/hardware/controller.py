@@ -40,4 +40,8 @@ class HardwareController:
             "bus": self.bus.snapshot(),
             "owl": self.owl.snapshot(),
             "av_recording": self.av.recording,
+            # Optimistic (last-commanded, not confirmed) - see actuators.py.
+            "arm": {"last_action": self.arm.last_action, "joints": dict(self.arm.joint_state)},
+            "bellows_running": self.bellows.running,
+            "leds": dict(self.leds.state),
         }

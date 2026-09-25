@@ -1,0 +1,31 @@
+repo_name: polerix/Voigt-Kampff_Empathy-Test
+report_id: bf7bb37eb23f42b3b4a25950d771df02
+version: 0.1
+repo_type: Public
+timestamp: '2024-05-17T22:02:45+00:00'
+requested_by: polerix
+provider: github
+branch: main
+detected_tools_count: 2
+tools:
+- name: Python
+  description: A clear and powerful object-oriented programming language, comparable
+    to Perl, Ruby, Scheme, or Java.
+  website_url: https://www.python.org
+  open_source: true
+  hosted_saas: false
+  category: Languages & Frameworks
+  sub_category: Languages
+  image_url: https://img.stackshare.io/service/993/pUBY5pVj.png
+  detection_source_url: https://github.com/polerix/Voigt-Kampff_Empathy-Test
+  detection_source: Repo Metadata
+- name: Git
+  description: Fast, scalable, distributed revision control system
+  website_url: http://git-scm.com/
+  open_source: true
+  hosted_saas: false
+  category: Build, Test, Deploy
+  sub_category: Version Control System
+  image_url: https://img.stackshare.io/service/1046/git.png
+  detection_source_url: https://github.com/polerix/Voigt-Kampff_Empathy-Test
+  detection_source: Repo Metadata

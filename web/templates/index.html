@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voight-Kampff Empathy Test</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <h1>Voight-Kampff Empathy Test</h1>
+  <div class="panel">
+    <p>Software emulation of the Voight-Kampff empathy test prop: a web
+    console that speaks the same MQTT bus as the physical prop's Message
+    Control Console, a 3D simulation view, and subject-facing readout
+    screens. Full description in the repo README and docs/design/device.md.</p>
+    <p>Hardware backend: <strong>{{ backend }}</strong>
+      {% if backend == "mock" %}(no broker attached - this is the software test site){% else %}(talking to the real VK bus){% endif %}
+    </p>
+    <p>
+      <a href="/console">Operator / puppeteer console &rarr;</a><br />
+      <a href="/simulation">3D simulation &rarr;</a><br />
+      <a href="/display/1">Subject display 1 &rarr;</a> ·
+      <a href="/display/2">Subject display 2 &rarr;</a> ·
+      <a href="/display/3">Subject display 3 &rarr;</a><br />
+      <a href="https://github.com/polerix/voigt-kampff-empathy-test">Source on GitHub &rarr;</a>
+    </p>
+  </div>
+</body>
+</html>

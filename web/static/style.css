@@ -1,0 +1,144 @@
+/* Plain, functional styling - no CRT/retro theming. High contrast, clear
+   state, nothing decorative. */
+:root {
+  --bg: #ffffff;
+  --fg: #111111;
+  --muted: #666666;
+  --border: #cccccc;
+  --ok: #1a7f37;
+  --warn: #b35c00;
+  --danger: #b00020;
+  --accent: #1a56db;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 1.5rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+button, select {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #f5f5f5;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #eaeaea;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+}
+
+.badge.locked, .badge.offline, .badge.down {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.badge.operator, .badge.online, .badge.up {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge.service {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.badge.unknown {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+.error-text {
+  color: var(--danger);
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.kiosk {
+  background: #000;
+  color: #eee;
+  min-height: 100vh;
+  padding: 2rem;
+  font-family: "Courier New", monospace;
+  font-size: 1.4rem;
+}
+
+.kiosk .line {
+  margin: 0.25rem 0;
+}
+
+.kiosk .readout {
+  margin-top: 2rem;
+  border-top: 1px solid #444;
+  padding-top: 1rem;
+}

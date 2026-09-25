@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VK Display {{ screen }}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="kiosk">
+  <div id="boot">
+    <div class="line">TODO: real boot/accreditation text goes here - placeholder until supplied.</div>
+  </div>
+  <div id="standby" style="display:none;">
+    <div class="line">STANDBY</div>
+  </div>
+  <div id="testing" style="display:none;">
+    <div class="readout">
+      <div class="line">EXPECTED RESPONSE: <span id="expected">-</span></div>
+      <div class="line">DEVIATION: <span id="deviation">0</span></div>
+      <div class="line">CO2 <span id="co2">-</span>  O2 <span id="o2">-</span>  PUPIL <span id="pupil">-</span>mm  PULSE <span id="pulse">-</span>  RT <span id="rt">-</span>s</div>
+    </div>
+  </div>
+<script>
+async function poll() {
+  try {
+    const res = await fetch("/api/state");
+    const state = await res.json();
+    const d = state.display;
+    document.getElementById("boot").style.display = d.mode === "boot" ? "block" : "none";
+    document.getElementById("standby").style.display = d.mode === "standby" ? "block" : "none";
+    document.getElementById("testing").style.display = d.mode === "testing" ? "block" : "none";
+    if (d.mode === "testing") {
+      document.getElementById("expected").textContent = d.expected_response || "-";
+      document.getElementById("deviation").textContent = d.deviation;
+      const s = d.sensors || {};
+      document.getElementById("co2").textContent = s.co2 ?? "-";
+      document.getElementById("o2").textContent = s.o2 ?? "-";
+      document.getElementById("pupil").textContent = s.pupil_dilation ?? "-";
+      document.getElementById("pulse").textContent = s.pulse ?? "-";
+      document.getElementById("rt").textContent = s.reaction_time ?? "-";
+    }
+  } catch (e) {
+    // keep polling even if a single request fails
+  }
+  setTimeout(poll, 1000);
+}
+poll();
+</script>
+</body>
+</html>

@@ -21,3 +21,6 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# runtime data: test results and live sensor state are generated, never committed
+/data/

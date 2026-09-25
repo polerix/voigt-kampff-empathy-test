@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VK 3D Simulation</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <style>
+    #scene-container { width: 100%; height: 60vh; min-height: 360px; border: 1px solid var(--border); border-radius: 6px; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <h1>3D Simulation</h1>
+
+  <div class="panel">
+    <div class="row">
+      <span>Bus: <span id="bus-badge" class="badge down">down</span></span>
+      <span>Tyrell: <span id="tyrell-badge" class="badge unknown">unknown</span></span>
+      <span>vk/state: <strong id="vk-state">-</strong></span>
+    </div>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      Placeholder geometry - the real GoldenArmor mesh isn't wired in yet
+      (see comment near the top of this page's script for the swap-in
+      point). Joint motion here is <strong>optimistic</strong>: it mirrors
+      the last commanded direction over an assumed travel time, not a
+      confirmed position - the MQTT contract has no joint-angle telemetry
+      topic, only command topics. Read-only view; use
+      <a href="/console">the console</a> to actually command anything.
+    </p>
+  </div>
+
+  <div id="scene-container"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/static/vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "/static/vendor/three/OrbitControls.js";
+
+// --- Swap-in point for the real GoldenArmor model -------------------------
+// Once the mesh is available (glTF/GLB preferred, decimated for real-time
+// rendering, and cleared for redistribution if it's going in this repo):
+//   1. Put it at web/static/models/golden-armor-vk.glb
+//   2. Vendor GLTFLoader.js the same way three.module.min.js and
+//      OrbitControls.js were (npm install three@0.160.0, copy
+//      examples/jsm/loaders/GLTFLoader.js into web/static/vendor/three/) -
+//      not included yet since there's no mesh to load it for.
+//   3. import { GLTFLoader } from "/static/vendor/three/GLTFLoader.js";
+//   4. Replace the placeholder group construction below with:
+//        new GLTFLoader().load("/static/models/golden-armor-vk.glb", (gltf) => {
+//          scene.add(gltf.scene);
+//          // then locate/rename its joint nodes to wire up animateJoints()
+//        });
+// Until then this renders simple boxes/cylinders standing in for the arm,
+// bellows, and LED indicators.
+// ---------------------------------------------------------------------------
+
+const container = document.getElementById("scene-container");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdddddd);
+
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(4, 3, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(3, 5, 2);
+scene.add(dirLight);
+
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+const armMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+
+// Base console body
+const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.6, 1.2), baseMat);
+base.position.set(0, 0.3, 0);
+scene.add(base);
+
+// Shoulder -> elbow -> wrist chain, each a pivot group + a box representing
+// that segment, matching the real joint names in the MQTT contract. Each
+// pivot's own mesh spans from its origin to +length along local x; the
+// NEXT pivot attaches to this pivot group (not to the mesh) at that same
+// length, so rotating a pivot correctly carries everything downstream of
+// it - that's the actual kinematic chain, not just visual stacking.
+const SHOULDER_LEN = 1.4;
+const ELBOW_LEN = 1.1;
+
+const shoulderPivot = new THREE.Group();
+shoulderPivot.position.set(-0.6, 0.6, 0);
+scene.add(shoulderPivot);
+const shoulderArm = new THREE.Mesh(new THREE.BoxGeometry(SHOULDER_LEN, 0.25, 0.25), armMat);
+shoulderArm.position.set(SHOULDER_LEN / 2, 0, 0);
+shoulderPivot.add(shoulderArm);
+
+const elbowPivot = new THREE.Group();
+elbowPivot.position.set(SHOULDER_LEN, 0, 0);
+shoulderPivot.add(elbowPivot);
+const elbowArm = new THREE.Mesh(new THREE.BoxGeometry(ELBOW_LEN, 0.2, 0.2), armMat);
+elbowArm.position.set(ELBOW_LEN / 2, 0, 0);
+elbowPivot.add(elbowArm);
+
+const wristPivot = new THREE.Group();
+wristPivot.position.set(ELBOW_LEN, 0, 0);
+elbowPivot.add(wristPivot);
+const eyepiece = new THREE.Mesh(
+  new THREE.SphereGeometry(0.18, 16, 16),
+  new THREE.MeshStandardMaterial({ color: 0x224422, emissive: 0x113311 })
+);
+wristPivot.add(eyepiece);
+
+// Bellows: a cylinder that "breathes" (scales) while running.
+const bellows = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.25, 0.25, 0.6, 16),
+  new THREE.MeshStandardMaterial({ color: 0x555555 })
+);
+bellows.position.set(0.6, 0.6, 0);
+scene.add(bellows);
+
+// LED indicators: eye / buttons / movie / vus, in that order.
+const ledNames = ["eye", "buttons", "movie", "vus"];
+const ledMeshes = {};
+ledNames.forEach((name, i) => {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0x666666, emissive: 0x000000 })
+  );
+  mesh.position.set(-0.9 + i * 0.25, 1.0, 0.5);
+  scene.add(mesh);
+  ledMeshes[name] = mesh;
+});
+
+// --- State-driven, optimistic animation -----------------------------------
+const TRAVEL_SECONDS = 1.5; // assumed time from fully retracted to fully extended
+const MAX_ANGLE = { shoulder: Math.PI / 3, elbow: Math.PI / 2.2, wrist: Math.PI / 2 };
+const jointVisual = { shoulder: 0, elbow: 0, wrist: 0 }; // 0 = retracted, 1 = extended
+const jointTarget = { shoulder: 0, elbow: 0, wrist: 0 };
+let bellowsRunning = false;
+let bellowsPhase = 0;
+
+function applyJointState(joints) {
+  for (const name of Object.keys(jointTarget)) {
+    const action = joints ? joints[name] : null;
+    if (action === "extend") jointTarget[name] = 1;
+    else if (action === "retract") jointTarget[name] = 0;
+    // "stop" (elbow only) or null: leave the current target alone
+  }
+}
+
+function ledColor(state) {
+  if (state === true) return 0x22cc44;
+  if (state === false) return 0x552222;
+  return 0x666666; // unknown
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/api/state");
+    const state = await res.json();
+
+    document.getElementById("bus-badge").textContent = state.bus.bus_up ? "up" : "down";
+    document.getElementById("bus-badge").className = "badge " + (state.bus.bus_up ? "up" : "down");
+    document.getElementById("tyrell-badge").textContent = state.bus.tyrell_status;
+    document.getElementById("tyrell-badge").className = "badge " + state.bus.tyrell_status;
+    document.getElementById("vk-state").textContent = state.bus.vk_state || "-";
+
+    applyJointState(state.arm && state.arm.joints);
+    bellowsRunning = !!state.bellows_running;
+
+    for (const name of ledNames) {
+      const on = state.leds ? state.leds[name] : null;
+      ledMeshes[name].material.color.setHex(ledColor(on));
+      ledMeshes[name].material.emissive.setHex(on === true ? 0x114411 : 0x000000);
+    }
+  } catch (e) {
+    // keep polling even if a single request fails
+  }
+  setTimeout(poll, 1000);
+}
+poll();
+
+let lastTime = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.1, (now - lastTime) / 1000);
+  lastTime = now;
+
+  const step = dt / TRAVEL_SECONDS;
+  for (const name of Object.keys(jointVisual)) {
+    const diff = jointTarget[name] - jointVisual[name];
+    if (Math.abs(diff) > 0.001) {
+      jointVisual[name] += Math.sign(diff) * Math.min(Math.abs(diff), step);
+    }
+  }
+  shoulderPivot.rotation.z = jointVisual.shoulder * MAX_ANGLE.shoulder;
+  elbowPivot.rotation.z = -jointVisual.elbow * MAX_ANGLE.elbow;
+  wristPivot.rotation.z = jointVisual.wrist * MAX_ANGLE.wrist;
+
+  if (bellowsRunning) {
+    bellowsPhase += dt * 2;
+    bellows.scale.y = 1 + 0.25 * Math.sin(bellowsPhase);
+  } else {
+    bellows.scale.y += (1 - bellows.scale.y) * Math.min(1, dt * 4);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+window.addEventListener("resize", () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+</script>
+</body>
+</html>
